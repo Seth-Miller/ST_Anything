@@ -24,31 +24,18 @@
 
 // for the UI
 metadata {
-	definition (name: "Child RGB Switch", namespace: "ogiewon", author: "Allan (vseven) - based on code by Dan Ogorchock") {
-	capability "Switch"		
-	capability "Switch Level"
-	capability "Actuator"
-	capability "Color Control"
-	capability "Sensor"
-	capability "Light"
-
-	command "softwhite"
-	command "daylight"
-	command "warmwhite"
-	command "red"
-	command "green"
-	command "blue"
-	command "cyan"
-	command "magenta"
-	command "orange"
-	command "purple"
-	command "yellow"
-	command "white"
+	definition (name: "Parent_ST_Anything_Ethernet", namespace: "ogiewon", author: "Dan Ogorchock") {
+        capability "Configuration"
+        capability "Refresh"
+        capability "Button"
+        capability "Holdable Button"
+        capability "Signal Strength"
+        
+        command "sendData", ["string"]
 	}
 
-	simulator {
-
-	}
+    simulator {
+    }
 
 	// Tile Definitions
 	tiles (scale: 2){
@@ -59,294 +46,303 @@ metadata {
 }
 
 
-def on() {
-    sendEvent(name: "switch", value: "on")
-    def lastColor = device.latestValue("color")
-    //log.debug("On pressed.  Sending last known color value of $lastColor or if null command to white.")
-    sendData("on")
-    if ( lastColor == Null ) {  // For initial run
-    	white() 
-    } else {
-        //log.debug "on event lastColor: $lastColor"
-    	adjustColor(lastColor)
-    }
-}
-
-def off() {
-    toggleTiles("off")
-    sendEvent(name: "switch", value: "off")
-    //log.debug("Off pressed.  Update parent device.")
-    sendData("off")
-}
-
-def setColor(Map color) {
-    log.debug "raw color map passed in: ${color}"
-    // Turn off the hard color tiles
-    toggleTiles("off") 
-    // If the color picker was selected we will have Red, Green, Blue, HEX, Hue, Saturation, and Alpha all present.
-    // Any other control will most likely only have Hue and Saturation
-    if (color.hex){
-        // came from the color picker.  Since the color selector takes into account lightness we have to reconvert
-        // the color values and adjust the level slider to better represent where it should be at based on the color picked
-        def colorHSL = rgbToHSL(color)
-        //log.debug "colorHSL: $colorHSL"
-        sendEvent(name: "level", value: (colorHSL.l * 100))
-        adjustColor(color.hex)
-    } else if (color.hue && color.saturation) {
-        // came from the ST cloud which only contains hue and saturation.  So convert to hex and pass it.
-        def colorRGB = hslToRGB(color.hue, color.saturation, 0.5)
-        def colorHEX = rgbToHex(colorRGB)
-        adjustColor(colorHEX)
-    }
-}
-
-def setLevel(value) {
-    def level = Math.min(value as Integer, 100)
-    // log.debug("Level value in percentage: $level")
-    sendEvent(name: "level", value: level)
-	
-    // Turn on or off based on level selection
-    if (level == 0) { 
-	    off() 
-    } else {
-	    if (device.latestValue("switch") == "off") { on() }
-        def color = device.latestValue("color")
-	    adjustColor(color)
-    }
-}
-
-def adjustColor(colorInHEX) {
-    sendEvent(name: "color", value: colorInHEX)
-    def level = device.latestValue("level")
-    // log.debug("level value is $level")
-    if(level == null){level = 50}
-    //log.debug "level from adjustColor routine: ${level}"
-    //log.debug "color from adjustColor routine: ${colorInHEX}"
-
-    def c = hexToRgb(colorInHEX)
-    
-    def r = hex(c.red * (level/100))
-    def g = hex(c.green * (level/100))
-    def b = hex(c.blue * (level/100))
-
-    def adjustedColor = "#${r}${g}${b}"
-    log.debug("Adjusted color is $adjustedColor")
-	
-    sendData("${adjustedColor}")
-}
-
-def sendData(String value) {
-    def name = device.deviceNetworkId.split("-")[-1]
-    parent.sendData("${name} ${value}")  
-}
-
+// parse events into attributes
 def parse(String description) {
-    log.debug "parse(${description}) called"
-	def parts = description.split(" ")
-    def name  = parts.length>0?parts[0].trim():null
-    def value = parts.length>1?parts[1].trim():null
-    if (name && value) {
-        // Update device
-        // The name coming in from ST_Anything will be "dimmerSwitch", but we want to the ST standard "switch" attribute for compatibility with normal SmartApps
-        sendEvent(name: "switch", value: value)
-        // Update lastUpdated date and time
-        def nowDay = new Date().format("MMM dd", location.timeZone)
-        def nowTime = new Date().format("h:mm a", location.timeZone)
-        sendEvent(name: "lastUpdated", value: nowDay + " at " + nowTime, displayed: false)
+	//log.debug "Parsing '${description}'"
+	def msg = parseLanMessage(description)
+	def headerString = msg.header
+
+	if (!headerString) {
+		//log.debug "headerstring was null for some reason :("
     }
-    else {
-    	log.debug "Missing either name or value.  Cannot parse!"
-    }
-}
 
+	def bodyString = msg.body
 
-def doColorButton(colorName) {
-    toggleTiles(colorName.toLowerCase().replaceAll("\\s",""))
-    def colorButtonData = getColorData(colorName)
-    adjustColor(colorButtonData)
-}
-
-def getColorData(colorName) {
-    //log.debug "getColorData colorName: ${colorName}"
-    def colorRGB = colorNameToRgb(colorName)
-    //log.debug "getColorData colorRGB: $colorRGB"
-    def colorHEX = rgbToHex(colorRGB)
-    //log.debug "getColorData colorHEX: $colorHEX"
-    colorHEX
-}
-
-private hex(value, width=2) {
-    def s = new BigInteger(Math.round(value).toString()).toString(16)
-    while (s.size() < width) {
-	s = "0" + s
-    }
-    s
-}
-
-def hexToRgb(colorHex) {
-    //log.debug("passed in colorHex: $colorHex")
-    def rrInt = Integer.parseInt(colorHex.substring(1,3),16)
-    def ggInt = Integer.parseInt(colorHex.substring(3,5),16)
-    def bbInt = Integer.parseInt(colorHex.substring(5,7),16)
-
-    def colorData = [:]
-    colorData = [red: rrInt, green: ggInt, blue: bbInt]
-    
-    colorData
-}
-
-def rgbToHex(rgb) {
-    //log.debug "rgbToHex rgb value: $rgb"
-    def r = hex(rgb.red)
-    def g = hex(rgb.green)
-    def b = hex(rgb.blue)
-	
-    def hexColor = "#${r}${g}${b}"
-
-    hexColor
-}
-
-def rgbToHSL(color) {
-	def r = color.red / 255
-    def g = color.green / 255
-    def b = color.blue / 255
-    def h = 0
-    def s = 0
-    def l = 0
-
-    def var_min = [r,g,b].min()
-    def var_max = [r,g,b].max()
-    def del_max = var_max - var_min
-
-    l = (var_max + var_min) / 2
-
-    if (del_max == 0) {
-            h = 0
-            s = 0
-    } else {
-    	if (l < 0.5) { s = del_max / (var_max + var_min) }
-        else { s = del_max / (2 - var_max - var_min) }
-
-        def del_r = (((var_max - r) / 6) + (del_max / 2)) / del_max
-        def del_g = (((var_max - g) / 6) + (del_max / 2)) / del_max
-        def del_b = (((var_max - b) / 6) + (del_max / 2)) / del_max
-
-        if (r == var_max) { h = del_b - del_g }
-        else if (g == var_max) { h = (1 / 3) + del_r - del_b }
-        else if (b == var_max) { h = (2 / 3) + del_g - del_r }
-
-		if (h < 0) { h += 1 }
-        if (h > 1) { h -= 1 }
-    }
-    def hsl = [:]
-    hsl = [h: h * 100, s: s * 100, l: l]
-
-    hsl
-}
-
-def hslToRGB(float var_h, float var_s, float var_l) {
-	float h = var_h / 100
-    float s = var_s / 100
-    float l = var_l
-
-    def r = 0
-    def g = 0
-    def b = 0
-
-	if (s == 0) {
-    	r = l * 255
-        g = l * 255
-        b = l * 255
-	} else {
-    	float var_2 = 0
-    	if (l < 0.5) {
-        	var_2 = l * (1 + s)
-        } else {
-        	var_2 = (l + s) - (s * l)
+	if (bodyString) {
+        log.debug "Parsing: $bodyString"
+    	def parts = bodyString.split(" ")
+    	def name  = parts.length>0?parts[0].trim():null
+    	def value = parts.length>1?parts[1].trim():null
+        
+		def nameparts = name.split("\\d+", 2)
+		def namebase = nameparts.length>0?nameparts[0].trim():null
+        def namenum = name.substring(namebase.length()).trim()
+		
+        def results = []
+        
+		if (name.startsWith("button")) {
+			//log.debug "In parse:  name = ${name}, value = ${value}, btnName = ${name}, btnNum = ${namemun}"
+        	results = createEvent([name: namebase, value: value, data: [buttonNumber: namenum], descriptionText: "${namebase} ${namenum} was ${value} ", isStateChange: true, displayed: true])
+			log.debug results
+			return results
         }
 
-        float var_1 = 2 * l - var_2
+		if (name.startsWith("rssi")) {
+			//log.debug "In parse: RSSI name = ${name}, value = ${value}"
+           	results = createEvent(name: name, value: value, displayed: false)
+            log.debug results
+			return results
+        }
 
-        r = 255 * hueToRgb(var_1, var_2, h + (1 / 3))
-        g = 255 * hueToRgb(var_1, var_2, h)
-        b = 255 * hueToRgb(var_1, var_2, h - (1 / 3))
+
+        def isChild = containsDigit(name)
+   		//log.debug "Name = ${name}, isChild = ${isChild}, namebase = ${namebase}, namenum = ${namenum}"      
+        //log.debug "parse() childDevices.size() =  ${childDevices.size()}"
+
+		def childDevice = null
+
+		try {
+
+            childDevices.each {
+				try{
+            		//log.debug "Looking for child with deviceNetworkID = ${device.deviceNetworkId}-${name} against ${it.deviceNetworkId}"
+                	if (it.deviceNetworkId == "${device.deviceNetworkId}-${name}") {
+                	childDevice = it
+                    //log.debug "Found a match!!!"
+                	}
+            	}
+            	catch (e) {
+            	//log.debug e
+            	}
+        	}
+            
+            //If a child should exist, but doesn't yet, automatically add it!            
+        	if (isChild && childDevice == null) {
+        		log.debug "isChild = true, but no child found - Auto Add it!"
+            	//log.debug "    Need a ${namebase} with id = ${namenum}"
+            
+            	createChildDevice(namebase, namenum)
+            	//find child again, since it should now exist!
+            	childDevices.each {
+					try{
+            			//log.debug "Looking for child with deviceNetworkID = ${device.deviceNetworkId}-${name} against ${it.deviceNetworkId}"
+                		if (it.deviceNetworkId == "${device.deviceNetworkId}-${name}") {
+                			childDevice = it
+                    		//log.debug "Found a match!!!"
+                		}
+            		}
+            		catch (e) {
+            			//log.debug e
+            		}
+        		}
+        	}
+            
+            if (childDevice != null) {
+                //log.debug "parse() found child device ${childDevice.deviceNetworkId}"
+                childDevice.parse("${namebase} ${value}")
+				log.debug "${childDevice.deviceNetworkId} - name: ${namebase}, value: ${value}"
+            }
+            else  //must not be a child, perform normal update
+            {
+                results = createEvent(name: name, value: value)
+                log.debug results
+                return results
+            }
+		}
+        catch (e) {
+        	log.error "Error in parse() routine, error = ${e}"
+        }
+
+	}
+}
+
+private getHostAddress() {
+    def ip = settings.ip
+    def port = settings.port
+    
+    log.debug "Using ip: ${ip} and port: ${port} for device: ${device.id}"
+    return ip + ":" + port
+}
+
+def sendData(message) {
+    sendEthernet(message) 
+}
+
+def sendEthernet(message) {
+	log.debug "Executing 'sendEthernet' ${message}"
+	if (settings.ip != null && settings.port != null) {
+        sendHubCommand(new physicalgraph.device.HubAction(
+            method: "POST",
+            path: "/${message}?",
+            headers: [ HOST: "${getHostAddress()}" ]
+        ))
     }
-
-    def rgb = [:]
-    rgb = [red: Math.round(r), green: Math.round(g), blue: Math.round(b)]
-
-    rgb
-}
-
-def hueToRgb(v1, v2, vh) {
-	if (vh < 0) { vh += 1 }
-	if (vh > 1) { vh -= 1 }
-	if ((6 * vh) < 1) { return (v1 + (v2 - v1) * 6 * vh) }
-    if ((2 * vh) < 1) { return (v2) }
-    if ((3 * vh) < 2) { return (v1 + (v2 - $v1) * ((2 / 3 - vh) * 6)) }
-    return (v1)
-}
-
-def colorNameToRgb(color) {
-    final colors = [
-	[name:"Soft White",	red: 255, green: 241,   blue: 224],
-	[name:"Daylight", 	red: 255, green: 255,   blue: 251],
-	[name:"Warm White", 	red: 255, green: 244,   blue: 229],
-
-	[name:"Red", 		red: 255, green: 0,	blue: 0	],
-	[name:"Green", 		red: 0,   green: 255,	blue: 0	],
-	[name:"Blue", 		red: 0,   green: 0,	blue: 255],
-
-	[name:"Cyan", 		red: 0,   green: 255,	blue: 255],
-	[name:"Magenta", 	red: 255, green: 0,	blue: 33],
-	[name:"Orange", 	red: 255, green: 102,   blue: 0	],
-
-	[name:"Purple", 	red: 170, green: 0,	blue: 255],
-	[name:"Yellow", 	red: 255, green: 255,   blue: 0	],
-	[name:"White", 		red: 255, green: 255,   blue: 255]
-    ]
-    def colorData = [:]
-    colorData = colors.find { it.name == color }
-    colorData
-}
-
-def toggleTiles(color) {
-    state.colorTiles = []
-    if ( !state.colorTiles ) {
-    	state.colorTiles = ["softwhite","daylight","warmwhite","red","green","blue","cyan","magenta",
-			    "orange","purple","yellow","white"]
+    else {
+        state.alertMessage = "ST_Anything Parent Device has not yet been fully configured. Click the 'Gear' icon, enter data for all fields, and click 'Done'"
+        runIn(2, "sendAlert")   
     }
-
-    def cmds = []
-
-    state.colorTiles.each({
-    	if ( it == color ) {
-            //log.debug "Turning ${it} on"
-            cmds << sendEvent(name: it, value: "on${it}", displayed: True, descriptionText: "${device.displayName} ${color} is 'ON'", isStateChange: true)
-        } else {
-            //log.debug "Turning ${it} off"
-            cmds << sendEvent(name: it, value: "off${it}", displayed: false)
-      }
-    })
 }
 
-// rows of buttons
-def softwhite() { doColorButton("Soft White") }
-def daylight()  { doColorButton("Daylight") }
-def warmwhite() { doColorButton("Warm White") }
+// handle commands
+def configure() {
+	log.debug "Executing 'configure()'"
+    updateDeviceNetworkID()
+	sendEvent(name: "numberOfButtons", value: numButtons)
+}
 
-def red() 	{ doColorButton("Red") }
-def green() 	{ doColorButton("Green") }
-def blue() 	{ doColorButton("Blue") }
-
-def cyan() 	{ doColorButton("Cyan") }
-def magenta()	{ doColorButton("Magenta") }
-def orange() 	{ doColorButton("Orange") }
-
-def purple()	{ doColorButton("Purple") }
-def yellow() 	{ doColorButton("Yellow") }
-def white() 	{ doColorButton("White") }
-
+def refresh() {
+	log.debug "Executing 'refresh()'"
+	sendEthernet("refresh")
+	sendEvent(name: "numberOfButtons", value: numButtons)
+}
 
 def installed() {
+	log.debug "Executing 'installed()'"
+    if ( device.deviceNetworkId =~ /^[A-Z0-9]{12}$/)
+    {
+    }
+    else
+    {
+        state.alertMessage = "ST_Anything Parent Device has not yet been fully configured. Click the 'Gear' icon, enter data for all fields, and click 'Done'"
+        runIn(2, "sendAlert")
+    }
+}
+
+def initialize() {
+	log.debug "Executing 'initialize()'"
+    sendEvent(name: "numberOfButtons", value: numButtons)
+}
+
+def updated() {
+	if (!state.updatedLastRanAt || now() >= state.updatedLastRanAt + 5000) {
+		state.updatedLastRanAt = now()
+		log.debug "Executing 'updated()'"
+    	runIn(3, "updateDeviceNetworkID")
+		sendEvent(name: "numberOfButtons", value: numButtons)
+        log.debug "Hub IP Address = ${device.hub.getDataValue("localIP")}"
+        log.debug "Hub Port = ${device.hub.getDataValue("localSrvPortTCP")}"
+	}
+	else {
+//		log.trace "updated(): Ran within last 5 seconds so aborting."
+	}
+}
+
+def updateDeviceNetworkID() {
+	log.debug "Executing 'updateDeviceNetworkID'"
+    def formattedMac = mac.toUpperCase()
+    formattedMac = formattedMac.replaceAll(":", "")
+    if(device.deviceNetworkId!=formattedMac) {
+        log.debug "setting deviceNetworkID = ${formattedMac}"
+        device.setDeviceNetworkId("${formattedMac}")
+	}
+    //Need deviceNetworkID updated BEFORE we can create Child Devices
+	//Have the Arduino send an updated value for every device attached.  This will auto-created child devices!
+	refresh()
+}
+
+private void createChildDevice(String deviceName, String deviceNumber) {
+    if ( device.deviceNetworkId =~ /^[A-Z0-9]{12}$/) {
+    
+		log.trace "createChildDevice:  Creating Child Device '${device.displayName} (${deviceName}${deviceNumber})'"
+        
+		try {
+        	def deviceHandlerName = ""
+        	switch (deviceName) {
+         		case "contact": 
+                		deviceHandlerName = "Child Contact Sensor" 
+                	break
+         		case "switch": 
+                		deviceHandlerName = "Child Switch" 
+                	break
+         		case "dimmerSwitch": 
+                		deviceHandlerName = "Child Dimmer Switch" 
+                	break
+         		case "rgbSwitch": 
+                		deviceHandlerName = "Child RGB Switch" 
+                	break
+         		case "generic": 
+                		deviceHandlerName = "Child Generic Sensor" 
+                	break
+         		case "rgbwSwitch": 
+                		deviceHandlerName = "Child RGBW Switch" 
+                	break
+         		case "relaySwitch": 
+                		deviceHandlerName = "Child Relay Switch" 
+                	break
+         		case "temperature": 
+                		deviceHandlerName = "Child Temperature Sensor" 
+                	break
+         		case "humidity": 
+                		deviceHandlerName = "Child Humidity Sensor" 
+                	break
+         		case "motion": 
+                		deviceHandlerName = "Child Motion Sensor" 
+                	break
+         		case "water": 
+                		deviceHandlerName = "Child Water Sensor" 
+                	break
+         		case "illuminance": 
+                		deviceHandlerName = "Child Illuminance Sensor" 
+                	break
+         		case "illuminancergb": 
+                		deviceHandlerName = "Child IlluminanceRGB Sensor" 
+                	break
+         		case "voltage": 
+                		deviceHandlerName = "Child Voltage Sensor" 
+                	break
+         		case "smoke": 
+                		deviceHandlerName = "Child Smoke Detector" 
+                	break    
+         		case "carbonMonoxide": 
+                		deviceHandlerName = "Child Carbon Monoxide Detector" 
+                	break    
+         		case "alarm": 
+                		deviceHandlerName = "Child Alarm" 
+                	break    
+         		case "doorControl": 
+                		deviceHandlerName = "Child Door Control" 
+                	break
+         		case "ultrasonic": 
+                		deviceHandlerName = "Child Ultrasonic Sensor" 
+                	break
+         		case "presence": 
+                		deviceHandlerName = "Child Presence Sensor" 
+                	break
+         		case "power": 
+                		deviceHandlerName = "Child Power Meter" 
+                	break
+         		case "servo": 
+                		deviceHandlerName = "Child Servo" 
+                	break
+         		case "pressure": 
+                		deviceHandlerName = "Child Pressure Measurement" 
+                	break
+			default: 
+                		log.error "No Child Device Handler case for ${deviceName}"
+      		}
+            if (deviceHandlerName != "") {
+         		addChildDevice(deviceHandlerName, "${device.deviceNetworkId}-${deviceName}${deviceNumber}", null,
+         			[completedSetup: true, label: "${device.displayName} (${deviceName}${deviceNumber})", 
+                	isComponent: false, componentName: "${deviceName}${deviceNumber}", componentLabel: "${deviceName} ${deviceNumber}"])
+        	}   
+    	} catch (e) {
+        	log.error "Child device creation failed with error = ${e}"
+        	state.alertMessage = "Child device creation failed. Please make sure that the '${deviceHandlerName}' is installed and published."
+	    	runIn(2, "sendAlert")
+    	}
+	} else 
+    {
+        state.alertMessage = "ST_Anything Parent Device has not yet been fully configured. Click the 'Gear' icon, enter data for all fields, and click 'Done'"
+        runIn(2, "sendAlert")
+    }
+}
+
+private sendAlert() {
+   sendEvent(
+      descriptionText: state.alertMessage,
+	  eventType: "ALERT",
+	  name: "childDeviceCreation",
+	  value: "failed",
+	  displayed: true,
+   )
+}
+
+private boolean containsDigit(String s) {
+    boolean containsDigit = false;
+
+    if (s != null && !s.isEmpty()) {
+//		log.debug "containsDigit .matches = ${s.matches(".*\\d+.*")}"
+		containsDigit = s.matches(".*\\d+.*")
+    }
+    return containsDigit
 }
