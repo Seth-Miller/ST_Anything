@@ -127,7 +127,6 @@ def parse(String description) {
 			return results
         }
 
-
         def isChild = containsDigit(name)
    		//log.debug "Name = ${name}, isChild = ${isChild}, namebase = ${namebase}, namenum = ${namenum}"      
         //log.debug "parse() childDevices.size() =  ${childDevices.size()}"
@@ -172,7 +171,14 @@ def parse(String description) {
             
             if (childDevice != null) {
                 //log.debug "parse() found child device ${childDevice.deviceNetworkId}"
-                childDevice.parse("${namebase} ${value}")
+                //modified to accept a return value
+                results = childDevice.parse("${namebase} ${value}")
+                //only sends back to the device if something was returned from the previous call
+                if (results) {
+                   	log.debug "Retrieving inputs from ${name}"
+					log.debug name + " " + results
+					sendData(name + " " + results)
+				}                    
 				log.debug "${childDevice.deviceNetworkId} - name: ${namebase}, value: ${value}"
             }
             else  //must not be a child, perform normal update
