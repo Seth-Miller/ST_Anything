@@ -34,6 +34,7 @@
  *    2018-06-24  Dan Ogorchock  Added Child Servo
  *    2018-07-01  Dan Ogorchock  Added Pressure Measurement
  *    2018-08-06  Dan Ogorchock  Added MAC Address formatting before setting deviceNetworkID
+ *    2018-12-06  Seth Miller    Accepts a return value if parse call to child device returns something. Return value is then sent back to device.
  *	
  */
  
