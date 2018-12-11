@@ -39,7 +39,7 @@
  */
  
 metadata {
-	definition (name: "Parent_ST_Anything_Ethernet", namespace: "ogiewon", author: "Dan Ogorchock") {
+	definition (name: "Parent_ST_Anything_Ethernet", namespace: "Seth-Miller", author: "Dan Ogorchock") {
         capability "Configuration"
         capability "Refresh"
         capability "Button"
@@ -172,14 +172,8 @@ def parse(String description) {
             
             if (childDevice != null) {
                 //log.debug "parse() found child device ${childDevice.deviceNetworkId}"
-                //modified to accept a return value
-                results = childDevice.parse("${namebase} ${value}")
+                childDevice.sendSettings()
                 //only sends back to the device if something was returned from the previous call
-                if (results) {
-                   	log.debug "Retrieving inputs from ${name}"
-					log.debug name + " " + results
-					sendData(name + " " + results)
-				}                    
 				log.debug "${childDevice.deviceNetworkId} - name: ${namebase}, value: ${value}"
             }
             else  //must not be a child, perform normal update
@@ -344,6 +338,9 @@ private void createChildDevice(String deviceName, String deviceNumber) {
                 	break
          		case "ultrasonic": 
                 		deviceHandlerName = "Child Ultrasonic Sensor" 
+                	break
+         		case "trafficlight": 
+                		deviceHandlerName = "Child Traffic Light" 
                 	break
          		case "presence": 
                 		deviceHandlerName = "Child Presence Sensor" 
