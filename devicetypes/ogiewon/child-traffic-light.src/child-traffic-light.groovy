@@ -22,7 +22,7 @@
  * 
  */
 metadata {
-	definition (name: "Child Traffic Light", namespace: "Seth-Miller", author: "Seth Miller") {
+	definition (name: "Child Traffic Light", namespace: "ogiewon", author: "Seth Miller") {
 		capability "Sensor"
         capability "Refresh"
         
