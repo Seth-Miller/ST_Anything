@@ -39,7 +39,7 @@
  */
  
 metadata {
-	definition (name: "Parent_ST_Anything_Ethernet", namespace: "Seth-Miller", author: "Dan Ogorchock") {
+	definition (name: "Parent_ST_Anything_Ethernet", namespace: "ogiewon", author: "Dan Ogorchock") {
         capability "Configuration"
         capability "Refresh"
         capability "Button"
