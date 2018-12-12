@@ -127,6 +127,7 @@ def parse(String description) {
 			return results
         }
 
+
         def isChild = containsDigit(name)
    		//log.debug "Name = ${name}, isChild = ${isChild}, namebase = ${namebase}, namenum = ${namenum}"      
         //log.debug "parse() childDevices.size() =  ${childDevices.size()}"
