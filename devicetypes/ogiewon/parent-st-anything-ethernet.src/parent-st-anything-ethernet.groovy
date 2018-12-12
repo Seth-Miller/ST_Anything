@@ -165,15 +165,14 @@ def parse(String description) {
                 		}
             		}
             		catch (e) {
-            			//log.debug e
+            			log.debug e
             		}
         		}
         	}
             
             if (childDevice != null) {
                 //log.debug "parse() found child device ${childDevice.deviceNetworkId}"
-                childDevice.sendSettings()
-                //only sends back to the device if something was returned from the previous call
+                childDevice.parse("${namebase} ${value}")
 				log.debug "${childDevice.deviceNetworkId} - name: ${namebase}, value: ${value}"
             }
             else  //must not be a child, perform normal update

@@ -46,13 +46,13 @@ metadata {
     
     preferences {
         input name: "local_poll", type: "number", title: "Local Polling Interval", description: "Enter time in milliseconds to update the RGB strip", required: false, defaultValue: "1000"
-        input name: "proceed_distance", type: "number", title: "Proceed Distance", description: "Enter distance in inches that will show a color indicating you can proceed", required: false, defaultValue: "5"
+        input name: "proceed_distance", type: "number", title: "Proceed Distance", description: "Enter distance in inches that will show a color indicating you can proceed", required: false, defaultValue: "20"
         input name: "proceed_color", type: "text", title: "Proceed Color", description: "Enter proceed color", required: false, defaultValue: "Blue"
-        input name: "warning_distance", type: "number", title: "Warning Distance", description: "Enter distance in inches that will show a warning color", required: false, defaultValue: "10"
+        input name: "warning_distance", type: "number", title: "Warning Distance", description: "Enter distance in inches that will show a warning color", required: false, defaultValue: "15"
         input name: "warning_color", type: "text", title: "Warning Color", description: "Enter warning color", required: false, defaultValue: "Yellow"
-        input name: "stop_distance", type: "number", title: "Stop Distance", description: "Enter distance in inches that will show a stop color", required: false, defaultValue: "15"
+        input name: "stop_distance", type: "number", title: "Stop Distance", description: "Enter distance in inches that will show a stop color", required: false, defaultValue: "10"
         input name: "stop_color", type: "text", title: "Stop Color", description: "Enter stop color", required: false, defaultValue: "Green"
-        input name: "too_far_distance", type: "number", title: "Too Far Distance", description: "Enter distance in inches that will show a color that means you have gone too far", required: false, defaultValue: "20"
+        input name: "too_far_distance", type: "number", title: "Too Far Distance", description: "Enter distance in inches that will show a color that means you have gone too far", required: false, defaultValue: "5"
         input name: "too_far_color", type: "text", title: "Too Far Color", description: "Enter too far color", required: false, defaultValue: "Red"
     }
 }
