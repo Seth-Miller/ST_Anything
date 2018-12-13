@@ -6,7 +6,7 @@
 //			  It inherits from the st::Executor class.
 //
 //			  Create an instance of this class in your sketch's global variable section
-//			  For Example:  st::EX_RGB_Dim executor1("rgbSwitch1", PIN_R, PIN_G, PIN_B, true, 0, 1, 2);
+//			  For Example:  st::EX_RGB_Dim executor1("rgbSwitch1", PIN_R, PIN_G, PIN_B, true, false, 0, 1, 2);
 //
 //			  st::EX_RGB_Dim() constructor requires the following arguments
 //				- String &name - REQUIRED - the name of the object - must match the Groovy ST_Anything DeviceType tile name
@@ -14,6 +14,7 @@
 //				- byte pin_g - REQUIRED - the Arduino Pin to be used as a digital output for Green
 //				- byte pin_b - REQUIRED - the Arduino Pin to be used as a digital output for Blue
 //				- bool commonAnode - REQUIRED - determines whether the Arduino Digital Output should use inverted logic
+//				- bool digitalOnly - REQUIRED - determines if the pins should use a digital signal (HIGH/LOW) instead of analog
 //				- byte channel_r - OPTIONAL - PWM channel used for Red on a ESP32
 //				- byte channel_g - OPTIONAL - PWM channel used for Green on a ESP32
 //				- byte channel_b - OPTIONAL - PWM channel used for Blue on a ESP32
@@ -26,6 +27,7 @@
 //    2018-08-14  Dan Ogorchock  Modified to avoid compiler errors on ESP32 since it currently does not support "analogWrite()"
 //    2017-08-30  Dan Ogorchock  Modified comment section above to comply with new Parent/Child Device Handler requirements
 //    2017-10-08  Allan (vseven) Modified original code from EX_RGB_Dim to be used for RGB lighting
+//    2018-11-26  Seth Miller    Added parameter to constructor to use digitalWrite instead of analogWrite
 //
 //******************************************************************************************
 #include "EX_RGB_Dim.h"
@@ -42,7 +44,7 @@ namespace st
 		int subStringG;
 		int subStringB;
 
-		if (m_bCurrentState == HIGH)
+		if (m_bCurrentState == HIGH || (m_bCommonAnode && m_bCurrentState == LOW))
 		{
 		// Our status is on so get the RGB value from the hex
 		String hexstring = m_sCurrentHEX;
@@ -54,12 +56,13 @@ namespace st
 	}
 	else
 	{
-		// Status is off so turn off LED
-		subStringR = 00;
+	// Status is off so turn off LED
+	subStringR = 00;
       	subStringG = 00;
       	subStringB = 00;
 	}
-      	if(m_bCommonAnode)
+
+      	if(m_bCommonAnode && not m_bDigitalOnly)
 		{
         		// A hex value of 00 will translate to 255 for a common anode.  However the  
         		// ledcWrite seems to need a 256 to turn off so we are adding one here.
@@ -67,7 +70,51 @@ namespace st
         		subStringG = 255 - subStringG + 1;
         		subStringB = 255 - subStringB + 1;
       	} 
-		// Write to outputs.  Use ledc for ESP32, analogWrite for everything else.
+
+	// If LEDs are digital only, convert the analog value to digital.
+	// Also swaps the pin output if common anode is enabled.
+	if(m_bDigitalOnly) {
+	        if(subStringR == 00) {
+			subStringR = LOW;
+			if (m_bCommonAnode) {
+				subStringR = HIGH;
+			}
+		}
+		else {
+			subStringR = HIGH;
+			if (m_bCommonAnode) {
+				subStringR = LOW;
+			}
+		}	
+
+	        if(subStringG == 00) {
+			subStringG = LOW;
+			if (m_bCommonAnode) {
+				subStringG = HIGH;
+			}
+		}
+		else {
+			subStringG = HIGH;
+			if (m_bCommonAnode) {
+				subStringG = LOW;
+			}
+		}	
+
+	        if(subStringB == 00) {
+			subStringB = LOW;
+			if (m_bCommonAnode) {
+				subStringB = HIGH;
+			}
+		}
+		else {
+			subStringB = HIGH;
+			if (m_bCommonAnode) {
+				subStringB = LOW;
+			}
+		}	
+	}
+
+		// Write to outputs.  Use ledc for ESP32, use digitalWrite for digital only pins, and use analogWrite for everything else.
 
 		if (st::Executor::debug) {
 			Serial.print(F("subString R:G:B = "));
@@ -77,31 +124,39 @@ namespace st
 		// Any adjustments to the colors can be done here before sending the commands.  For example if red is always too bright reduce it:
 		// subStringR = subStringR * 0.95
 
-		#if defined(ARDUINO_ARCH_ESP32)
-			ledcWrite(m_nChannelR, subStringR);
-		#else
-			analogWrite(m_nPinR, subStringR);
-		#endif
+		if(m_bDigitalOnly) {
+			digitalWrite(m_nPinR, subStringR);
+			digitalWrite(m_nPinG, subStringG);
+			digitalWrite(m_nPinB, subStringB);
+		}
+		else {
+			#if defined(ARDUINO_ARCH_ESP32)
+				ledcWrite(m_nChannelR, subStringR);
+			#else
+				analogWrite(m_nPinR, subStringR);
+			#endif
 
-		#if defined(ARDUINO_ARCH_ESP32)
-			ledcWrite(m_nChannelG, subStringG);
-		#else
-			analogWrite(m_nPinG, subStringG);
-		#endif
+			#if defined(ARDUINO_ARCH_ESP32)
+				ledcWrite(m_nChannelG, subStringG);
+			#else
+				analogWrite(m_nPinG, subStringG);
+			#endif
 
-		#if defined(ARDUINO_ARCH_ESP32)
-			ledcWrite(m_nChannelB, subStringB);
-		#else
-			analogWrite(m_nPinB, subStringB);
-		#endif
+			#if defined(ARDUINO_ARCH_ESP32)
+				ledcWrite(m_nChannelB, subStringB);
+			#else
+				analogWrite(m_nPinB, subStringB);
+			#endif
+		}
 
 	}
 
 //public
 	//constructor
-	EX_RGB_Dim::EX_RGB_Dim(const __FlashStringHelper *name, byte pinR, byte pinG, byte pinB, bool commonAnode, byte channelR, byte channelG, byte channelB):
+	EX_RGB_Dim::EX_RGB_Dim(const __FlashStringHelper *name, byte pinR, byte pinG, byte pinB, bool commonAnode, bool digitalOnly, byte channelR, byte channelG, byte channelB):
 		Executor(name),
-		m_bCommonAnode(commonAnode)
+		m_bCommonAnode(commonAnode),
+		m_bDigitalOnly(digitalOnly)
 	{
 		setRedPin(pinR, channelR);
 		setGreenPin(pinG, channelG);
@@ -117,6 +172,9 @@ namespace st
 	void EX_RGB_Dim::init()
 	{
 		Everything::sendSmartString(getName() + " " + (m_bCurrentState == HIGH ? F("on") : F("off")));
+		if(m_bDigitalOnly) {
+			Everything::sendSmartString(getName() + " " + (m_bCurrentState == LOW ? F("on") : F("off")));
+		}
 	}
 
 	void EX_RGB_Dim::beSmart(const String &str)
@@ -129,10 +187,17 @@ namespace st
 		if(s==F("on"))
 		{
 			m_bCurrentState=HIGH;
+			if(m_bDigitalOnly) {
+				m_bCurrentState=LOW;
+			}
+			
 		}
 		else if(s==F("off"))
 		{
 			m_bCurrentState=LOW;
+			if(m_bDigitalOnly) {
+				m_bCurrentState=HIGH;
+			}
 		}
 		else //must be a set color command
 		{
@@ -142,12 +207,18 @@ namespace st
 
 		writeRGBToPins();
 
-		Everything::sendSmartString(getName() + " " + (m_bCurrentState == HIGH?F("on"):F("off")));
+		//Everything::sendSmartString(getName() + " " + (m_bCurrentState == HIGH?F("on"):F("off")));
+		if(m_bDigitalOnly) {
+			//Everything::sendSmartString(getName() + " " + (m_bCurrentState == LOW?F("on"):F("off")));
+		}
 	}
 	
 	void EX_RGB_Dim::refresh()
 	{
 		Everything::sendSmartString(getName() + " " + (m_bCurrentState == HIGH?F("on"):F("off")));
+		if(m_bDigitalOnly) {
+			Everything::sendSmartString(getName() + " " + (m_bCurrentState == LOW?F("on"):F("off")));
+		}
 	}
 	
 	void EX_RGB_Dim::setRedPin(byte pin, byte channel)

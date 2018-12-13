@@ -14,6 +14,7 @@
 //				- byte pin_g - REQUIRED - the Arduino Pin to be used as a digital output for Green.
 //				- byte pin_b - REQUIRED - the Arduino Pin to be used as a digital output for Blue.
 //				- bool commonAnode - REQUIRED - determines whether the LED uses a common Anode or Cathode.  True for Anode.
+//				- bool digitalOnly - REQUIRED - determines if the pins should use a digital signal (HIGH/LOW) instead of analog
 //				- byte channel_r - OPTIONAL - PWM channel used for Red on a ESP32.
 //				- byte channel_g - OPTIONAL - PWM channel used for Green on a ESP32.
 //				- byte channel_b - OPTIONAL - PWM channel used for Blue on a ESP32.
@@ -26,6 +27,7 @@
 //    2018-08-14  Dan Ogorchock  Modified to avoid compiler errors on ESP32 since it currently does not support "analogWrite()"
 //    2017-08-30  Dan Ogorchock  Modified comment section above to comply with new Parent/Child Device Handler requirements
 //    2017-10-06  Allan (vseven) Modified original code from EX_Switch_Dim to be used for RGB lighting
+//    2018-11-26  Seth Miller    Added parameter to constructor to use digitalWrite instead of analogWrite
 //
 //******************************************************************************************
 #ifndef ST_EX_RGB_DIM
@@ -40,6 +42,7 @@ namespace st
 		private:
 			bool m_bCurrentState;	//HIGH or LOW
 			bool m_bCommonAnode;	//TRUE or FALSE
+			bool m_bDigitalOnly;	//TRUE or FALSE
 			byte m_nPinR;		//Arduino Pin used as a PWM Output for Red
 			byte m_nPinG;		//Arduino Pin used as a PWM Output for Green
 			byte m_nPinB;		//Arduino Pin used as a PWM Output for Blue
@@ -52,7 +55,7 @@ namespace st
 
 		public:
 			//constructor - called in your sketch's global variable declaration section
-			EX_RGB_Dim(const __FlashStringHelper *name, byte pinR, byte pinG, byte pinB, bool commonAnode, byte channelR = 0, byte channelG = 0, byte channelB = 0);
+			EX_RGB_Dim(const __FlashStringHelper *name, byte pinR, byte pinG, byte pinB, bool commonAnode, bool digitalOnly, byte channelR = 0, byte channelG = 0, byte channelB = 0);
 			
 			//destructor
 			virtual ~EX_RGB_Dim();
